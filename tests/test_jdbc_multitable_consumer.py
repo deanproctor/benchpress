@@ -44,7 +44,7 @@ def test_table(database, benchmark_args):
 @pytest.mark.parametrize('record_count', (50_000,))
 @pytest.mark.parametrize('number_of_threads', (1,2,4,8))
 @database
-def jdbc_multitable_to_trash(sdc_builder, sdc_executor, database, test_table, record_count, number_of_threads, benchmark_args):
+def test_jdbc_multitable_to_trash(sdc_builder, sdc_executor, database, test_table, record_count, number_of_threads, benchmark_args):
     pipeline_builder = sdc_builder.get_pipeline_builder()
     jdbc_multitable_consumer = pipeline_builder.add_stage('JDBC Multitable Consumer')
     jdbc_multitable_consumer.set_attributes(table_configs=[dict(tablePattern=test_table)],
