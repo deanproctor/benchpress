@@ -25,6 +25,6 @@ maintain-boss.pid
 pretenders-boss.pid
 pretenders.log
 venv/*
-results/*
 __pycache__/*
-
+results
+resources
