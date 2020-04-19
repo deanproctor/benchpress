@@ -25,8 +25,8 @@ def sdc_common_hook():
     return hook
 
 @pytest.mark.parametrize('origin', ('JDBC Multitable Consumer',))
-@pytest.mark.parametrize('destination', ('Trash', 'Local FS'))
-@pytest.mark.parametrize('dataset', ('census',))
+@pytest.mark.parametrize('destination', ('Trash', 'Local FS', 'JDBC Producer'))
+@pytest.mark.parametrize('dataset', ('narrow','wide'))
 @pytest.mark.parametrize('batch_size', (1000,))
 @pytest.mark.parametrize('destination_format', ('DELIMITED',))
 @pytest.mark.parametrize('number_of_threads', (1,2,4,8))

@@ -7,6 +7,7 @@ import string
 import tempfile
 
 from urllib.request import urlopen
+from streamsets.sdk.utils import Version
 from streamsets.testframework.utils import get_random_string
 
 record_count = 50000000
@@ -15,8 +16,8 @@ dataset_suffix = '.00001.csv'
 load_timeout = 86400
 std_dev_threshold = 1
 
-datasets = {'cardtxn': {'file_pattern': 'cardtxn_50m', 'delimiter': ',', 'label': 'cardtxn (73 cols, 515 bytes per row)'},
-            'census': {'file_pattern': 'census_50m', 'delimiter': ',', 'label': 'census (12 cols, 150 bytes per row)'}}
+datasets = {'wide': {'file_pattern': 'cardtxn_50m', 'delimiter': ',', 'label': 'wide (74 cols, 525 bytes per row)'},
+            'narrow': {'file_pattern': 'census_50m', 'delimiter': ',', 'label': 'narrow (13 cols, 160 bytes per row)'}}
 
 sdc_builder = None
 sdc_executor = None
@@ -71,15 +72,16 @@ def run_test(builder, executor, origin_stage, destination_stage, my_dataset, thr
         json.dump(results, file)
 
 def setup_origin_table():
-    if environment.engine.dialect.has_table(environment.engine, dataset):
-        return
-    with open(dataset_dir + '/' + datasets[dataset]['file_pattern'] + dataset_suffix) as csv_file:
-        csv_reader = csv.DictReader(csv_file, delimiter=datasets[dataset]['delimiter'])
-        header = []
-        header.append(next(csv_reader))
-        environment.insert_data(dataset, header)
     directory, pipeline_builder = get_origin('Directory', 8)
-    jdbc_producer = get_destination('JDBC Producer', pipeline_builder)
+
+    create_table_if_not_exists(dataset)
+    jdbc_producer = pipeline_builder.add_stage('JDBC Producer', type='destination')
+    jdbc_producer.set_attributes(default_operation="INSERT",
+                                 field_to_column_mapping=[],
+                                 enclose_object_names = True,
+                                 use_multi_row_operation = True,
+                                 statement_parameter_limit = 32768,
+                                 table_name=dataset)
 
     directory >> jdbc_producer
 
@@ -88,6 +90,15 @@ def setup_origin_table():
     sdc_executor.start_pipeline(populate_pipeline).wait_for_pipeline_output_records_count(record_count, timeout_sec=load_timeout)
     sdc_executor.stop_pipeline(populate_pipeline)
     sdc_executor.remove_pipeline(populate_pipeline)
+
+def create_table_if_not_exists(table_name):
+    if environment.engine.dialect.has_table(environment.engine, table_name):
+        return
+    with open(dataset_dir + '/' + datasets[dataset]['file_pattern'] + dataset_suffix) as csv_file:
+        csv_reader = csv.DictReader(csv_file, delimiter=datasets[dataset]['delimiter'])
+        header = []
+        header.append(next(csv_reader))
+        environment.insert_data(table_name, header)
 
 def get_destination(my_destination, pipeline_builder):
     destinations = {
@@ -114,13 +125,22 @@ def get_localfs_destination(pipeline_builder):
     return local_fs, pipeline_builder
 
 def get_jdbc_producer_destination(pipeline_builder):
+    table_name = get_random_string().lower()
+    create_table_if_not_exists(table_name)
     jdbc_producer = pipeline_builder.add_stage('JDBC Producer', type='destination')
     jdbc_producer.set_attributes(default_operation="INSERT",
                                  field_to_column_mapping=[],
                                  enclose_object_names = True,
                                  use_multi_row_operation = True,
                                  statement_parameter_limit = 32768,
-                                 table_name=dataset)
+                                 table_name=table_name)
+    query = 'drop table ' + table_name
+    stop_stage = pipeline_builder.add_stop_event_stage('JDBC Query')
+    if Version(sdc_builder.version) < Version('3.14.0'):
+        stop_stage.set_attributes(sql_query=query)
+    else:
+        stop_stage.set_attributes(sql_queries=[query])
+
     return jdbc_producer, pipeline_builder
 
 

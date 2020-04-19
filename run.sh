@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#versions=(3.10.0 3.10.1 3.10.2 3.11.0 3.12.0 3.13.0 3.14.0)
-versions=(3.14.0)
+versions=(3.10.0 3.10.1 3.10.2 3.11.0 3.12.0 3.13.0 3.14.0)
+#versions=(3.14.0)
 runs=1
 
 mkdir -p results resources
@@ -17,7 +17,7 @@ for version in ${versions[@]}; do
     for test in `ls tests/test_*.py`; do
 	case $test in
             "tests/test_directory.py")
-                stf --sdc-resources-directory ./resources test -sv --sdc-version $version --benchmark-arg=RUNS=$runs $test
+                stf --sdc-resources-directory ./resources test -sv --sdc-version $version --database postgresql://postgres.cluster:5432/default --benchmark-arg=KEEP_TABLE=true --benchmark-arg=RUNS=$runs $test
                 ;;
 
             "tests/test_jdbc_multitable_consumer.py")

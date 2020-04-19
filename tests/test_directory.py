@@ -16,6 +16,8 @@ The tests in this module are for running high-volume pipelines, for the purpose 
 import pytest
 import benchpress
 
+from streamsets.testframework.markers import database
+
 @pytest.fixture(scope='module')
 def sdc_common_hook():
     def hook(data_collector):
@@ -23,11 +25,12 @@ def sdc_common_hook():
     return hook
 
 @pytest.mark.parametrize('origin', ('Directory',))
-@pytest.mark.parametrize('destination', ('Trash', 'Local FS'))
-@pytest.mark.parametrize('dataset', ('census','cardtxn'))
+@pytest.mark.parametrize('destination', ('Trash', 'Local FS', 'JDBC Producer'))
+@pytest.mark.parametrize('dataset', ('narrow','wide'))
 @pytest.mark.parametrize('batch_size', (1000,))
 @pytest.mark.parametrize('destination_format', ('DELIMITED',))
 @pytest.mark.parametrize('number_of_threads', (1,2,4,8))
-def test_directory(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, benchmark_args):
-    benchpress.run_test(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, benchmark_args)
+@database
+def test_directory(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, benchmark_args, database):
+    benchpress.run_test(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, benchmark_args, database)
 
