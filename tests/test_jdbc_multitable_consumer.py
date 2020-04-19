@@ -27,10 +27,12 @@ def sdc_common_hook():
 @pytest.mark.parametrize('origin', ('JDBC Multitable Consumer',))
 @pytest.mark.parametrize('destination', ('Trash', 'Local FS', 'JDBC Producer'))
 @pytest.mark.parametrize('dataset', ('narrow','wide'))
+#@pytest.mark.parametrize('number_of_threads', (1,2,4,8))
+@pytest.mark.parametrize('number_of_threads', (1,))
 @pytest.mark.parametrize('batch_size', (1000,))
 @pytest.mark.parametrize('destination_format', ('DELIMITED',))
-@pytest.mark.parametrize('number_of_threads', (1,2,4,8))
+@pytest.mark.parametrize('num_processors', (0,4))
 @database
-def test_jdbc_multitable_consumer(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, benchmark_args, database):
-    benchpress.run_test(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, benchmark_args, database)
+def test_jdbc_multitable_consumer(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database):
+    benchpress.run_test(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database)
 
