@@ -2,7 +2,7 @@
 
 # Benchmark Arguments
 RUNS=1
-RECORD_COUNT=5000
+RECORD_COUNT=50000000
 
 BENCHMARK_ARGS="--benchmark-arg=RUNS=${RUNS} --benchmark-arg=RECORD_COUNT=${RECORD_COUNT}"
 
@@ -33,8 +33,9 @@ ste start $JDBC
 ste start $KAFKA
 
 for version in ${VERSIONS[@]}; do
-    stf --sdc-resources-directory ./resources test -sv --sdc-version $version $JDBC_ARGS $KAFKA_ARGS $BENCHMARK_ARGS tests/test_directory.py
-    stf --sdc-resources-directory ./resources test -sv --sdc-version $version $JDBC_ARGS $KAFKA_ARGS $BENCHMARK_ARGS tests/test_jdbc_multitable_consumer.py
+#    stf --sdc-resources-directory ./resources test -sv --sdc-version $version $JDBC_ARGS $KAFKA_ARGS $BENCHMARK_ARGS tests/test_directory.py
+#    stf --sdc-resources-directory ./resources test -sv --sdc-version $version $JDBC_ARGS $KAFKA_ARGS $BENCHMARK_ARGS tests/test_jdbc_multitable_consumer.py
+    stf --sdc-resources-directory ./resources test -sv --sdc-version $version $JDBC_ARGS $KAFKA_ARGS $BENCHMARK_ARGS tests/test_all.py
 done
 
 # Save results to Elasticsearch

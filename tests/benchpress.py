@@ -7,6 +7,7 @@ import statistics
 import string
 import tempfile
 
+from kafka.admin import KafkaAdminClient
 from urllib.request import urlopen
 from streamsets.sdk.utils import Version
 from streamsets.testframework.utils import get_random_string
@@ -28,10 +29,12 @@ number_of_threads = None
 batch_size = None
 destination_format = None
 benchmark_args = None
-environment = None
+database = None
+kafka = None
+kafka_topic = None
 
-def run_test(builder, executor, origin_stage, destination_stage, my_dataset, threads, my_batch_size, my_destination_format, num_processors, my_benchmark_args, my_environment):
-    global sdc_builder, sdc_executor, environment, origin, destination, dataset, number_of_threads, batch_size, destination_format, benchmark_args, environment, record_count
+def run_test(builder, executor, origin_stage, destination_stage, my_dataset, threads, my_batch_size, my_destination_format, num_processors, my_benchmark_args, database_env=None, kafka_env=None):
+    global sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, benchmark_args, record_count, database, kafka
     sdc_builder = builder
     sdc_executor = executor
     dataset = my_dataset
@@ -39,7 +42,8 @@ def run_test(builder, executor, origin_stage, destination_stage, my_dataset, thr
     batch_size = my_batch_size
     destination_format = my_destination_format
     benchmark_args = my_benchmark_args
-    environment = my_environment
+    database = database_env
+    kafka = kafka_env
     record_count = benchmark_args.get('RECORD_COUNT') or record_count
     runs = benchmark_args.get('RUNS') or benchmark_runs
 
@@ -65,7 +69,7 @@ def run_test(builder, executor, origin_stage, destination_stage, my_dataset, thr
     else: 
         origin >> destination
 
-    pipeline = pipeline_builder.build().configure_for_environment(environment)
+    pipeline = pipeline_builder.build().configure_for_environment(database,kafka)
 
     results = sdc_executor.benchmark_pipeline(pipeline, record_count=record_count, runs=runs)
 
@@ -93,6 +97,11 @@ def run_test(builder, executor, origin_stage, destination_stage, my_dataset, thr
     with open("results/" + results['pipeline_id'] + ".json", "w") as file:
         json.dump(results, file)
 
+    #cleanup
+    if destination_stage == 'Kafka':
+        admin_client = KafkaAdminClient(bootstrap_servers=kafka.kafka.brokers, client_id='admin')
+        admin_client.delete_topics([kafka_topic])
+
 def setup_origin_table():
     directory, pipeline_builder = get_origin('Directory', 8)
 
@@ -108,14 +117,14 @@ def setup_origin_table():
 
     directory >> jdbc_producer
 
-    pipeline = pipeline_builder.build().configure_for_environment(environment)
+    pipeline = pipeline_builder.build().configure_for_environment(database)
     sdc_executor.add_pipeline(pipeline)
     sdc_executor.start_pipeline(pipeline).wait_for_pipeline_output_records_count(record_count, timeout_sec=load_timeout)
     sdc_executor.stop_pipeline(pipeline)
     sdc_executor.remove_pipeline(pipeline)
 
 def create_table_if_not_exists(table_name):
-    if environment.engine.dialect.has_table(environment.engine, table_name):
+    if database.engine.dialect.has_table(database.engine, table_name):
         return True
     with open(dataset_dir + '/' + datasets[dataset]['file_pattern'] + dataset_suffix) as csv_file:
         csv_reader = csv.DictReader(csv_file, delimiter=datasets[dataset]['delimiter'])
@@ -135,12 +144,13 @@ def create_table_if_not_exists(table_name):
         table = sqlalchemy.Table(table_name, metadata, sqlalchemy.Column('id', sqlalchemy.Integer, primary_key=True),
                                  *(sqlalchemy.Column(column_name, column_type(60))
                                    for column_name, column_type in data_column))
-        table.create(environment.engine)
+        table.create(database.engine)
     return False
 
 def get_destination(my_destination, pipeline_builder):
     destinations = {
         'JDBC Producer': get_jdbc_producer_destination,
+        'Kafka': get_kafka_destination,
         'Local FS': get_localfs_destination,
         'Trash': get_trash_destination
     }
@@ -181,6 +191,14 @@ def get_jdbc_producer_destination(pipeline_builder):
 
     return jdbc_producer, pipeline_builder
 
+def get_kafka_destination(pipeline_builder):
+    global kafka_topic
+    kafka_topic = get_random_string(string.ascii_letters, 10)
+    kafka_destination = pipeline_builder.add_stage(name='com_streamsets_pipeline_stage_destination_kafka_KafkaDTarget',
+                                          library=kafka.kafka.standalone_stage_lib)
+    kafka_destination.set_attributes(topic=kafka_topic,
+                                     data_format=destination_format)
+    return kafka_destination, pipeline_builder
 
 def get_origin(my_origin, threads):
     origins = {
