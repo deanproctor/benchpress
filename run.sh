@@ -35,7 +35,8 @@ ste start $KAFKA
 for version in ${VERSIONS[@]}; do
 #    stf --sdc-resources-directory ./resources test -sv --sdc-version $version $JDBC_ARGS $KAFKA_ARGS $BENCHMARK_ARGS tests/test_directory.py
 #    stf --sdc-resources-directory ./resources test -sv --sdc-version $version $JDBC_ARGS $KAFKA_ARGS $BENCHMARK_ARGS tests/test_jdbc_multitable_consumer.py
-    stf --sdc-resources-directory ./resources test -sv --sdc-version $version $JDBC_ARGS $KAFKA_ARGS $BENCHMARK_ARGS tests/test_all.py
+    stf --sdc-resources-directory ./resources test -sv --sdc-version $version $JDBC_ARGS $KAFKA_ARGS $BENCHMARK_ARGS tests/test_kafka.py
+#    stf --sdc-resources-directory ./resources test -sv --sdc-version $version $JDBC_ARGS $KAFKA_ARGS $BENCHMARK_ARGS tests/test_all.py
 done
 
 # Save results to Elasticsearch

@@ -24,8 +24,8 @@ def sdc_common_hook():
         data_collector.sdc_properties['production.maxBatchSize'] = '100000'
     return hook
 
-@pytest.mark.parametrize('origin', ('Directory','JDBC Multitable Consumer'))
-@pytest.mark.parametrize('destination', ('Trash', 'Local FS', 'JDBC Producer', 'Kafka'))
+@pytest.mark.parametrize('origin', ('Directory','JDBC Multitable Consumer', 'Kafka Multitopic Consumer'))
+@pytest.mark.parametrize('destination', ('Trash', 'Local FS', 'JDBC Producer', 'Kafka Producer'))
 @pytest.mark.parametrize('dataset', ('narrow','wide'))
 @pytest.mark.parametrize('number_of_threads', (1,2,4,8))
 @pytest.mark.parametrize('batch_size', (1000,))

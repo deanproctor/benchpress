@@ -103,10 +103,10 @@ def run_test(builder, executor, origin_stage, destination_stage, my_dataset, thr
         admin_client.delete_topics([kafka_topic])
 
 def setup_origin_table():
-    directory, pipeline_builder = get_origin('Directory', 8)
-
     if create_table_if_not_exists(dataset):
         return
+
+    directory, pipeline_builder = get_origin('Directory', 8)
     jdbc_producer = pipeline_builder.add_stage('JDBC Producer', type='destination')
     jdbc_producer.set_attributes(default_operation="INSERT",
                                  field_to_column_mapping=[],
@@ -126,6 +126,7 @@ def setup_origin_table():
 def create_table_if_not_exists(table_name):
     if database.engine.dialect.has_table(database.engine, table_name):
         return True
+
     with open(dataset_dir + '/' + datasets[dataset]['file_pattern'] + dataset_suffix) as csv_file:
         csv_reader = csv.DictReader(csv_file, delimiter=datasets[dataset]['delimiter'])
         header = []
@@ -147,10 +148,34 @@ def create_table_if_not_exists(table_name):
         table.create(database.engine)
     return False
 
+def setup_origin_topic():
+    if dataset in kafka.kafka.consumer().topics():
+        return
+
+    directory, pipeline_builder = get_origin('Directory', 8)
+    kafka_producer = pipeline_builder.add_stage(name='com_streamsets_pipeline_stage_destination_kafka_KafkaDTarget',
+                                          library=kafka.kafka.standalone_stage_lib)
+    kafka_producer.set_attributes(topic=dataset,
+                                  data_format='DELIMITED',
+                                  header_line='WITH_HEADER',
+                                  delimiter_format='CUSTOM',
+                                  delimiter_character=datasets[dataset]['delimiter'])
+
+    directory >> kafka_producer
+    
+    pipeline = pipeline_builder.build().configure_for_environment(kafka)
+    sdc_executor.add_pipeline(pipeline)
+    sdc_executor.start_pipeline(pipeline).wait_for_pipeline_output_records_count(record_count, timeout_sec=load_timeout)
+    sdc_executor.stop_pipeline(pipeline)
+    sdc_executor.remove_pipeline(pipeline)
+
+
+### Destinations
+
 def get_destination(my_destination, pipeline_builder):
     destinations = {
         'JDBC Producer': get_jdbc_producer_destination,
-        'Kafka': get_kafka_destination,
+        'Kafka Producer': get_kafka_producer_destination,
         'Local FS': get_localfs_destination,
         'Trash': get_trash_destination
     }
@@ -191,19 +216,26 @@ def get_jdbc_producer_destination(pipeline_builder):
 
     return jdbc_producer, pipeline_builder
 
-def get_kafka_destination(pipeline_builder):
+def get_kafka_producer_destination(pipeline_builder):
     global kafka_topic
     kafka_topic = get_random_string(string.ascii_letters, 10)
-    kafka_destination = pipeline_builder.add_stage(name='com_streamsets_pipeline_stage_destination_kafka_KafkaDTarget',
-                                          library=kafka.kafka.standalone_stage_lib)
-    kafka_destination.set_attributes(topic=kafka_topic,
-                                     data_format=destination_format)
-    return kafka_destination, pipeline_builder
+    kafka_producer = pipeline_builder.add_stage(name='com_streamsets_pipeline_stage_destination_kafka_KafkaDTarget',
+                                      library=kafka.kafka.standalone_stage_lib)
+    kafka_producer.set_attributes(topic=kafka_topic,
+                                  data_format=destination_format,
+                                  header_line='WITH_HEADER',
+                                  delimiter_format='CUSTOM',
+                                  delimiter_character=datasets[dataset]['delimiter'])
+    return kafka_producer, pipeline_builder
+
+
+### Origins
 
 def get_origin(my_origin, threads):
     origins = {
         'Directory': get_directory_origin,
-        'JDBC Multitable Consumer': get_jdbc_multitable_origin
+        'JDBC Multitable Consumer': get_jdbc_multitable_origin,
+        'Kafka Multitopic Consumer': get_kafka_multitopic_origin
     }
     stage = origins.get(my_origin, threads)
     return stage(threads)
@@ -230,6 +262,26 @@ def get_jdbc_multitable_origin(threads):
                                             number_of_threads=threads,
                                             maximum_pool_size=threads)
     return jdbc_multitable_consumer, pipeline_builder
+
+def get_kafka_multitopic_origin(threads):
+    setup_origin_topic()
+    pipeline_builder = sdc_builder.get_pipeline_builder()
+    kafka_multitopic_consumer = pipeline_builder.add_stage('Kafka Multitopic Consumer',
+                                                type='origin',
+                                                library=kafka.kafka.standalone_stage_lib)
+    kafka_multitopic_consumer.set_attributes(data_format='DELIMITED',
+                              header_line='WITH_HEADER',
+                              delimiter_format_type='CUSTOM',
+                              delimiter_character=datasets[dataset]['delimiter'],
+                              consumer_group=get_random_string(string.ascii_letters, 10),
+                              auto_offset_reset='EARLIEST',
+                              max_batch_size_in_records=batch_size,
+                              number_of_threads=threads,
+                              topic_list=[dataset])
+    return kafka_multitopic_consumer, pipeline_builder
+
+
+### Processors
 
 def get_stream_selector(pipeline_builder):
     stream_selector = pipeline_builder.add_stage('Stream Selector')
