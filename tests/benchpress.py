@@ -7,7 +7,7 @@ import statistics
 import string
 import tempfile
 
-from kafka.admin import KafkaAdminClient
+from kafka.admin import KafkaAdminClient, NewTopic
 from urllib.request import urlopen
 from streamsets.sdk.utils import Version
 from streamsets.testframework.utils import get_random_string
@@ -151,6 +151,9 @@ def create_table_if_not_exists(table_name):
 def setup_origin_topic():
     if dataset in kafka.kafka.consumer().topics():
         return
+
+    admin_client = KafkaAdminClient(bootstrap_servers=kafka.kafka.brokers, request_timeout_ms=180000)
+    admin_client.create_topics(new_topics=[NewTopic(name=dataset, num_partitions=8, replication_factor=1)], timeout_ms=180000)
 
     directory, pipeline_builder = get_origin('Directory', 8)
     kafka_producer = pipeline_builder.add_stage(name='com_streamsets_pipeline_stage_destination_kafka_KafkaDTarget',

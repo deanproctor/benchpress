@@ -24,15 +24,14 @@ def sdc_common_hook():
         data_collector.sdc_properties['production.maxBatchSize'] = '100000'
     return hook
 
-@pytest.mark.parametrize('origin', ('Directory',))
-@pytest.mark.parametrize('destination', ('Trash', 'Local FS', 'JDBC Producer', 'Kafka Producer'))
+@pytest.mark.parametrize('origin', ('JDBC Multitable Consumer',))
+@pytest.mark.parametrize('destination', ('JDBC Producer',))
 @pytest.mark.parametrize('dataset', ('narrow','wide'))
 @pytest.mark.parametrize('number_of_threads', (1,2,4,8))
 @pytest.mark.parametrize('batch_size', (1000,))
 @pytest.mark.parametrize('destination_format', ('DELIMITED',))
 @pytest.mark.parametrize('num_processors', (0,4))
 @database
-@cluster('kafka')
-def test_directory(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database, cluster):
-    benchpress.run_test(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database_env=database, kafka_env=cluster)
+def test_jdbc_multitable_consumer(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database):
+    benchpress.run_test(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database)
 
