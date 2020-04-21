@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Benchmark Arguments
-RUNS=1
+RUNS=3
 RECORD_COUNT=15000000
 
 ELASTICSEARCH='https://vpc-benchpress-whgyccujkszqd7kxu6cqncxlly.us-west-2.es.amazonaws.com/benchmarks/1'
@@ -14,7 +14,7 @@ VERSIONS=(3.14.0 3.13.0 3.12.0 3.11.0 3.10.2 3.10.1 3.10.0)
 # Environments
 JDBC=PostgreSQL_9.6.2
 KAFKA=Kafka_1.0
-SFTP=SFTP
+SFTP="SFTP -v $(pwd)/resources:/home/admin/sftp_dir"
 
 JDBC_ARGS="--database postgresql://postgres.cluster:5432/default"
 KAFKA_ARGS="--cluster-server kafka://node-1.cluster:9092,node-2.cluster:9092,node-3.cluster:9092 --kafka-version 1.0.0 --kafka-zookeeper node-1.cluster:2181,node-2.cluster:2181,node-3.cluster:2181 --confluent-schema-registry http://registry-1.cluster:8081"
