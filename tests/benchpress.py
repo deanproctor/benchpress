@@ -73,7 +73,10 @@ def run_test(builder, executor, origin_stage, destination_stage, my_dataset, thr
     else: 
         origin >> destination
 
-    pipeline = pipeline_builder.build().configure_for_environment(database,kafka,sftp)
+    if sftp is not None:
+        pipeline = pipeline_builder.build().configure_for_environment(database,kafka,sftp)
+    else:
+        pipeline = pipeline_builder.build().configure_for_environment(database,kafka)
 
     results = sdc_executor.benchmark_pipeline(pipeline, record_count=record_count, runs=runs)
 
