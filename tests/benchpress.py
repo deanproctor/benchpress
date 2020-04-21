@@ -7,6 +7,7 @@ import statistics
 import string
 import tempfile
 
+from datetime import datetime
 from kafka.admin import KafkaAdminClient, NewTopic
 from urllib.request import urlopen
 from streamsets.sdk.utils import Version
@@ -18,9 +19,10 @@ dataset_dir = 'resources'
 dataset_suffix = '.00001.csv'
 load_timeout = 86400
 std_dev_threshold = 1
+max_concurrency = 8
 
-datasets = {'wide': {'file_pattern': 'cardtxn_50m', 'delimiter': ',', 'label': 'wide (74 cols, 525 bytes per row)'},
-            'narrow': {'file_pattern': 'census_50m', 'delimiter': ',', 'label': 'narrow (13 cols, 160 bytes per row)'}}
+datasets = {'wide': {'file_pattern': 'cardtxn_50m', 'delimiter': ',', 'label': 'wide (74 cols, 1450 bytes per row)'},
+            'narrow': {'file_pattern': 'census_50m', 'delimiter': ',', 'label': 'narrow (13 cols, 275 bytes per row)'}}
 
 sdc_builder = None
 sdc_executor = None
@@ -73,6 +75,7 @@ def run_test(builder, executor, origin_stage, destination_stage, my_dataset, thr
 
     results = sdc_executor.benchmark_pipeline(pipeline, record_count=record_count, runs=runs)
 
+    results['generated_date'] = str(datetime.now())
     results['sdc_version'] = sdc_builder.version
     results['origin'] = origin_stage
     results['destination'] = destination_stage
@@ -99,14 +102,14 @@ def run_test(builder, executor, origin_stage, destination_stage, my_dataset, thr
 
     #cleanup
     if destination_stage == 'Kafka':
-        admin_client = KafkaAdminClient(bootstrap_servers=kafka.kafka.brokers, client_id='admin')
+        admin_client = KafkaAdminClient(bootstrap_servers=kafka.kafka.brokers, request_timeout_ms=180000)
         admin_client.delete_topics([kafka_topic])
 
 def setup_origin_table():
     if create_table_if_not_exists(dataset):
         return
 
-    directory, pipeline_builder = get_origin('Directory', 8)
+    directory, pipeline_builder = get_origin('Directory', max_concurrency)
     jdbc_producer = pipeline_builder.add_stage('JDBC Producer', type='destination')
     jdbc_producer.set_attributes(default_operation="INSERT",
                                  field_to_column_mapping=[],
@@ -149,13 +152,10 @@ def create_table_if_not_exists(table_name):
     return False
 
 def setup_origin_topic():
-    if dataset in kafka.kafka.consumer().topics():
+    if create_topic_if_not_exists(dataset):
         return
 
-    admin_client = KafkaAdminClient(bootstrap_servers=kafka.kafka.brokers, request_timeout_ms=180000)
-    admin_client.create_topics(new_topics=[NewTopic(name=dataset, num_partitions=8, replication_factor=1)], timeout_ms=180000)
-
-    directory, pipeline_builder = get_origin('Directory', 8)
+    directory, pipeline_builder = get_origin('Directory', max_concurrency)
     kafka_producer = pipeline_builder.add_stage(name='com_streamsets_pipeline_stage_destination_kafka_KafkaDTarget',
                                           library=kafka.kafka.standalone_stage_lib)
     kafka_producer.set_attributes(topic=dataset,
@@ -171,6 +171,14 @@ def setup_origin_topic():
     sdc_executor.start_pipeline(pipeline).wait_for_pipeline_output_records_count(record_count, timeout_sec=load_timeout)
     sdc_executor.stop_pipeline(pipeline)
     sdc_executor.remove_pipeline(pipeline)
+
+def create_topic_if_not_exists(topic):
+    if dataset in kafka.kafka.consumer().topics():
+        return True
+
+    admin_client = KafkaAdminClient(bootstrap_servers=kafka.kafka.brokers, request_timeout_ms=180000)
+    admin_client.create_topics(new_topics=[NewTopic(name=topic, num_partitions=max_concurrency, replication_factor=1)], timeout_ms=180000)
+    return False
 
 
 ### Destinations
@@ -222,6 +230,7 @@ def get_jdbc_producer_destination(pipeline_builder):
 def get_kafka_producer_destination(pipeline_builder):
     global kafka_topic
     kafka_topic = get_random_string(string.ascii_letters, 10)
+    create_topic_if_not_exists(kafka_topic)
     kafka_producer = pipeline_builder.add_stage(name='com_streamsets_pipeline_stage_destination_kafka_KafkaDTarget',
                                       library=kafka.kafka.standalone_stage_lib)
     kafka_producer.set_attributes(topic=kafka_topic,

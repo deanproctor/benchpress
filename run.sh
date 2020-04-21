@@ -2,7 +2,9 @@
 
 # Benchmark Arguments
 RUNS=1
-RECORD_COUNT=50000000
+RECORD_COUNT=10000000
+
+ELASTICSEARCH='https://vpc-benchpress-whgyccujkszqd7kxu6cqncxlly.us-west-2.es.amazonaws.com/benchmarks/1'
 
 BENCHMARK_ARGS="--benchmark-arg=RUNS=${RUNS} --benchmark-arg=RECORD_COUNT=${RECORD_COUNT}"
 
@@ -19,7 +21,7 @@ KAFKA_ARGS="--cluster-server kafka://node-1.cluster:9092,node-2.cluster:9092,nod
 SFTP_ARGS="--sftp-url sftp://mysftpserver:22/sftp_dir --sftp-username admin --sftp-password admin"
 
 # Create test directories
-mkdir -p results resources
+mkdir -p results/sent resources
 
 # Download the data sets
 for dataset in census cardtxn; do
@@ -36,10 +38,11 @@ ste start $SFTP
 
 for version in ${VERSIONS[@]}; do
     stf --docker-image streamsets/testframework:sdk-31361_31360 --sdc-resources-directory ./resources test -sv --sdc-version $version $JDBC_ARGS $KAFKA_ARGS $SFTP_ARGS $BENCHMARK_ARGS tests
-done
 
-# Save results to Elasticsearch
-for file in `ls results/*.json`; do 
-    curl -H 'Content-Type: application/json' -XPOST 'https://vpc-benchpress-whgyccujkszqd7kxu6cqncxlly.us-west-2.es.amazonaws.com/benchmarks/1' -d @$file
+    # Save results to Elasticsearch
+    for file in `ls results/*.json`; do
+        curl -H 'Content-Type: application/json' -XPOST $ELASTICSEARCH -d @$file
+        mv $file results/sent
+    done
 done
 
