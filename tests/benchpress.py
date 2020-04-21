@@ -101,7 +101,7 @@ def run_test(builder, executor, origin_stage, destination_stage, my_dataset, thr
         json.dump(results, file)
 
     #cleanup
-    if destination_stage == 'Kafka':
+    if destination_stage == 'Kafka Producer':
         admin_client = KafkaAdminClient(bootstrap_servers=kafka.kafka.brokers, request_timeout_ms=180000)
         admin_client.delete_topics([kafka_topic])
 
@@ -177,7 +177,7 @@ def create_topic_if_not_exists(topic):
         return True
 
     admin_client = KafkaAdminClient(bootstrap_servers=kafka.kafka.brokers, request_timeout_ms=180000)
-    admin_client.create_topics(new_topics=[NewTopic(name=topic, num_partitions=max_concurrency, replication_factor=1)], timeout_ms=180000)
+    admin_client.create_topics(new_topics=[NewTopic(name=topic, num_partitions=max_concurrency*2, replication_factor=1)], timeout_ms=180000)
     return False
 
 

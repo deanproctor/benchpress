@@ -2,7 +2,7 @@
 
 # Benchmark Arguments
 RUNS=1
-RECORD_COUNT=10000000
+RECORD_COUNT=15000000
 
 ELASTICSEARCH='https://vpc-benchpress-whgyccujkszqd7kxu6cqncxlly.us-west-2.es.amazonaws.com/benchmarks/1'
 
