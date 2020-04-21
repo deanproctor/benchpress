@@ -33,10 +33,11 @@ destination_format = None
 benchmark_args = None
 database = None
 kafka = None
+sftp = None
 kafka_topic = None
 
-def run_test(builder, executor, origin_stage, destination_stage, my_dataset, threads, my_batch_size, my_destination_format, num_processors, my_benchmark_args, database_env=None, kafka_env=None):
-    global sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, benchmark_args, record_count, database, kafka
+def run_test(builder, executor, origin_stage, destination_stage, my_dataset, threads, my_batch_size, my_destination_format, num_processors, my_benchmark_args, database_env=None, kafka_env=None, sftp_env=None):
+    global sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, benchmark_args, record_count, database, kafka, sftp
     sdc_builder = builder
     sdc_executor = executor
     dataset = my_dataset
@@ -46,6 +47,7 @@ def run_test(builder, executor, origin_stage, destination_stage, my_dataset, thr
     benchmark_args = my_benchmark_args
     database = database_env
     kafka = kafka_env
+    sftp = sftp_env
     record_count = benchmark_args.get('RECORD_COUNT') or record_count
     runs = benchmark_args.get('RUNS') or benchmark_runs
 
@@ -71,7 +73,7 @@ def run_test(builder, executor, origin_stage, destination_stage, my_dataset, thr
     else: 
         origin >> destination
 
-    pipeline = pipeline_builder.build().configure_for_environment(database,kafka)
+    pipeline = pipeline_builder.build().configure_for_environment(database,kafka,sftp)
 
     results = sdc_executor.benchmark_pipeline(pipeline, record_count=record_count, runs=runs)
 
@@ -188,6 +190,7 @@ def get_destination(my_destination, pipeline_builder):
         'JDBC Producer': get_jdbc_producer_destination,
         'Kafka Producer': get_kafka_producer_destination,
         'Local FS': get_localfs_destination,
+        'SFTP Client': get_sftp_client_destination,
         'Trash': get_trash_destination
     }
     stage = destinations.get(my_destination)
@@ -232,13 +235,18 @@ def get_kafka_producer_destination(pipeline_builder):
     kafka_topic = get_random_string(string.ascii_letters, 10)
     create_topic_if_not_exists(kafka_topic)
     kafka_producer = pipeline_builder.add_stage(name='com_streamsets_pipeline_stage_destination_kafka_KafkaDTarget',
-                                      library=kafka.kafka.standalone_stage_lib)
+                                      library=kafka.kafka.standalone_stage_lib, type='destination')
     kafka_producer.set_attributes(topic=kafka_topic,
                                   data_format=destination_format,
                                   header_line='WITH_HEADER',
                                   delimiter_format='CUSTOM',
                                   delimiter_character=datasets[dataset]['delimiter'])
     return kafka_producer, pipeline_builder
+
+def get_sftp_client_destination(pipeline_builder):
+    sftp_client = pipeline_builder.add_stage(name='com_streamsets_pipeline_stage_destination_remote_RemoteUploadDTarget', type='destination')
+    sftp_client.file_name_expression = '${uuid:uuid()}'
+    return sftp_client, pipeline_builder
 
 
 ### Origins
@@ -247,7 +255,8 @@ def get_origin(my_origin, threads):
     origins = {
         'Directory': get_directory_origin,
         'JDBC Multitable Consumer': get_jdbc_multitable_origin,
-        'Kafka Multitopic Consumer': get_kafka_multitopic_origin
+        'Kafka Multitopic Consumer': get_kafka_multitopic_origin,
+        'SFTP Client': get_sftp_client_origin
     }
     stage = origins.get(my_origin, threads)
     return stage(threads)
@@ -291,6 +300,15 @@ def get_kafka_multitopic_origin(threads):
                               number_of_threads=threads,
                               topic_list=[dataset])
     return kafka_multitopic_consumer, pipeline_builder
+
+def get_sftp_client_origin(threads):
+    pipeline_builder = sdc_builder.get_pipeline_builder()
+    sftp_client = pipeline_builder.add_stage(name='com_streamsets_pipeline_stage_origin_remote_RemoteDownloadDSource', type='origin')
+    sftp_client.set_attributes(data_format='DELIMITED',
+                               file_name_pattern=datasets[dataset]['file_pattern'] + '*',
+                               delimiter_character=datasets[dataset]['delimiter'],
+                               header_line='WITH_HEADER')
+    return sftp_client, pipeline_builder
 
 
 ### Processors

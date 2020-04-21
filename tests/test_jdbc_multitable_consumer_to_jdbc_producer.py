@@ -32,6 +32,6 @@ def sdc_common_hook():
 @pytest.mark.parametrize('destination_format', ('DELIMITED',))
 @pytest.mark.parametrize('num_processors', (0,4))
 @database
-def test_jdbc_multitable_consumer(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database):
+def test_benchpress(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database):
     benchpress.run_test(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database)
 

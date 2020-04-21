@@ -16,7 +16,7 @@ The tests in this module are for running high-volume pipelines, for the purpose 
 import pytest
 import benchpress
 
-from streamsets.testframework.markers import database, cluster
+from streamsets.testframework.markers import database, cluster, sftp
 
 @pytest.fixture(scope='module')
 def sdc_common_hook():
@@ -24,14 +24,16 @@ def sdc_common_hook():
         data_collector.sdc_properties['production.maxBatchSize'] = '100000'
     return hook
 
-@pytest.mark.parametrize('origin', ('JDBC Multitable Consumer',))
-@pytest.mark.parametrize('destination', ('Trash',))
+@pytest.mark.parametrize('origin', ('SFTP Client',))
+@pytest.mark.parametrize('destination', ('Local FS',))
 @pytest.mark.parametrize('dataset', ('narrow','wide'))
-@pytest.mark.parametrize('number_of_threads', (1,2,4,8))
+@pytest.mark.parametrize('number_of_threads', (1,))
 @pytest.mark.parametrize('batch_size', (1000,))
 @pytest.mark.parametrize('destination_format', ('DELIMITED',))
 @pytest.mark.parametrize('num_processors', (0,4))
 @database
-def test_benchpress(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database):
-    benchpress.run_test(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database)
+@cluster('kafka')
+@sftp
+def test_benchpress(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database, cluster, sftp):
+    benchpress.run_test(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database_env=database, kafka_env=cluster, sftp_env=sftp)
 
