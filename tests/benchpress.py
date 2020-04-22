@@ -10,6 +10,7 @@ import tempfile
 from datetime import datetime
 from kafka.admin import KafkaAdminClient, NewTopic
 from urllib.request import urlopen
+
 from streamsets.sdk.utils import Version
 from streamsets.testframework.utils import get_random_string
 
@@ -35,6 +36,7 @@ database = None
 kafka = None
 sftp = None
 kafka_topic = None
+table = None
 
 def run_test(builder, executor, origin_stage, destination_stage, my_dataset, threads, my_batch_size, my_destination_format, num_processors, my_benchmark_args, database_env=None, kafka_env=None, sftp_env=None):
     global sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, benchmark_args, record_count, database, kafka, sftp
@@ -55,10 +57,10 @@ def run_test(builder, executor, origin_stage, destination_stage, my_dataset, thr
     destination, pipeline_builder = get_destination(destination_stage, pipeline_builder)
 
     if num_processors == 4:
-        stream_selector, pipeline_builder = get_stream_selector(pipeline_builder)
-        expression_evaluator, pipeline_builder = get_expression_evaluator(pipeline_builder)
-        field_type_converter, pipeline_builder = get_field_type_converter(pipeline_builder)
-        schema_generator, pipeline_builder = get_schema_generator(pipeline_builder)
+        stream_selector, pipeline_builder = stream_selector(pipeline_builder)
+        expression_evaluator, pipeline_builder = expression_evaluator(pipeline_builder)
+        field_type_converter, pipeline_builder = field_type_converter(pipeline_builder)
+        schema_generator, pipeline_builder = schema_generator(pipeline_builder)
         trash, pipeline_builder = get_destination('Trash', pipeline_builder)
     
         origin >> stream_selector
@@ -105,10 +107,13 @@ def run_test(builder, executor, origin_stage, destination_stage, my_dataset, thr
     with open("results/" + results['pipeline_id'] + ".json", "w") as file:
         json.dump(results, file)
 
-    #cleanup
+    # Cleanup
     if destination_stage == 'Kafka Producer':
         admin_client = KafkaAdminClient(bootstrap_servers=kafka.kafka.brokers, request_timeout_ms=180000)
         admin_client.delete_topics([kafka_topic])
+        
+    if destination_stage == 'JDBC Producer':
+        table.drop(database.engine)
 
 def setup_origin_table():
     if create_table_if_not_exists(dataset):
@@ -135,6 +140,7 @@ def create_table_if_not_exists(table_name):
     if database.engine.dialect.has_table(database.engine, table_name):
         return True
 
+    global table
     with open(dataset_dir + '/' + datasets[dataset]['file_pattern'] + dataset_suffix) as csv_file:
         csv_reader = csv.DictReader(csv_file, delimiter=datasets[dataset]['delimiter'])
         header = []
@@ -190,20 +196,20 @@ def create_topic_if_not_exists(topic):
 
 def get_destination(my_destination, pipeline_builder):
     destinations = {
-        'JDBC Producer': get_jdbc_producer_destination,
-        'Kafka Producer': get_kafka_producer_destination,
-        'Local FS': get_localfs_destination,
-        'SFTP Client': get_sftp_client_destination,
-        'Trash': get_trash_destination
+        'JDBC Producer': jdbc_producer_destination,
+        'Kafka Producer': kafka_producer_destination,
+        'Local FS': localfs_destination,
+        'SFTP Client': sftp_client_destination,
+        'Trash': trash_destination
     }
     stage = destinations.get(my_destination)
     return stage(pipeline_builder)
 
-def get_trash_destination(pipeline_builder):
+def trash_destination(pipeline_builder):
     trash = pipeline_builder.add_stage('Trash', type='destination')
     return trash, pipeline_builder
 
-def get_localfs_destination(pipeline_builder):
+def localfs_destination(pipeline_builder):
     tmp_directory = os.path.join(tempfile.gettempdir(), get_random_string(string.ascii_letters, 10))
     local_fs = pipeline_builder.add_stage('Local FS', type='destination')
     local_fs.set_attributes(data_format=destination_format,
@@ -214,7 +220,7 @@ def get_localfs_destination(pipeline_builder):
 
     return local_fs, pipeline_builder
 
-def get_jdbc_producer_destination(pipeline_builder):
+def jdbc_producer_destination(pipeline_builder):
     table_name = get_random_string().lower()
     create_table_if_not_exists(table_name)
     jdbc_producer = pipeline_builder.add_stage('JDBC Producer', type='destination')
@@ -224,16 +230,9 @@ def get_jdbc_producer_destination(pipeline_builder):
                                  use_multi_row_operation = True,
                                  statement_parameter_limit = 32768,
                                  table_name=table_name)
-    query = 'drop table ' + table_name
-    stop_stage = pipeline_builder.add_stop_event_stage('JDBC Query')
-    if Version(sdc_builder.version) < Version('3.14.0'):
-        stop_stage.set_attributes(sql_query=query)
-    else:
-        stop_stage.set_attributes(sql_queries=[query])
-
     return jdbc_producer, pipeline_builder
 
-def get_kafka_producer_destination(pipeline_builder):
+def kafka_producer_destination(pipeline_builder):
     global kafka_topic
     kafka_topic = get_random_string(string.ascii_letters, 10)
     create_topic_if_not_exists(kafka_topic)
@@ -246,7 +245,7 @@ def get_kafka_producer_destination(pipeline_builder):
                                   delimiter_character=datasets[dataset]['delimiter'])
     return kafka_producer, pipeline_builder
 
-def get_sftp_client_destination(pipeline_builder):
+def sftp_client_destination(pipeline_builder):
     sftp_client = pipeline_builder.add_stage(name='com_streamsets_pipeline_stage_destination_remote_RemoteUploadDTarget', type='destination')
     sftp_client.file_name_expression = '${uuid:uuid()}'
     return sftp_client, pipeline_builder
@@ -256,15 +255,15 @@ def get_sftp_client_destination(pipeline_builder):
 
 def get_origin(my_origin, threads):
     origins = {
-        'Directory': get_directory_origin,
-        'JDBC Multitable Consumer': get_jdbc_multitable_origin,
-        'Kafka Multitopic Consumer': get_kafka_multitopic_origin,
-        'SFTP Client': get_sftp_client_origin
+        'Directory': directory_origin,
+        'JDBC Multitable Consumer': jdbc_multitable_origin,
+        'Kafka Multitopic Consumer': kafka_multitopic_origin,
+        'SFTP Client': sftp_client_origin
     }
     stage = origins.get(my_origin, threads)
     return stage(threads)
 
-def get_directory_origin(threads):
+def directory_origin(threads):
     pipeline_builder = sdc_builder.get_pipeline_builder()
     directory = pipeline_builder.add_stage('Directory', type='origin')
     directory.set_attributes(data_format='DELIMITED',
@@ -277,7 +276,7 @@ def get_directory_origin(threads):
                              batch_size_in_recs=batch_size)
     return directory, pipeline_builder
 
-def get_jdbc_multitable_origin(threads):
+def jdbc_multitable_origin(threads):
     setup_origin_table()
     pipeline_builder = sdc_builder.get_pipeline_builder()
     jdbc_multitable_consumer = pipeline_builder.add_stage('JDBC Multitable Consumer', type='origin')
@@ -287,7 +286,7 @@ def get_jdbc_multitable_origin(threads):
                                             maximum_pool_size=threads)
     return jdbc_multitable_consumer, pipeline_builder
 
-def get_kafka_multitopic_origin(threads):
+def kafka_multitopic_origin(threads):
     setup_origin_topic()
     pipeline_builder = sdc_builder.get_pipeline_builder()
     kafka_multitopic_consumer = pipeline_builder.add_stage('Kafka Multitopic Consumer',
@@ -304,7 +303,7 @@ def get_kafka_multitopic_origin(threads):
                               topic_list=[dataset])
     return kafka_multitopic_consumer, pipeline_builder
 
-def get_sftp_client_origin(threads):
+def sftp_client_origin(threads):
     pipeline_builder = sdc_builder.get_pipeline_builder()
     sftp_client = pipeline_builder.add_stage(name='com_streamsets_pipeline_stage_origin_remote_RemoteDownloadDSource', type='origin')
     sftp_client.set_attributes(data_format='DELIMITED',
@@ -316,12 +315,12 @@ def get_sftp_client_origin(threads):
 
 ### Processors
 
-def get_stream_selector(pipeline_builder):
+def stream_selector(pipeline_builder):
     stream_selector = pipeline_builder.add_stage('Stream Selector')
     return stream_selector, pipeline_builder
 
 
-def get_expression_evaluator(pipeline_builder):
+def expression_evaluator(pipeline_builder):
     expression_evaluator = pipeline_builder.add_stage('Expression Evaluator')
     expression_evaluator.header_attribute_expressions = [
         {'attributeToSet': 'title', 'headerAttributeExpression': '${pipeline:title()}'},
@@ -331,7 +330,7 @@ def get_expression_evaluator(pipeline_builder):
     ]
     return expression_evaluator, pipeline_builder
 
-def get_field_type_converter(pipeline_builder):
+def field_type_converter(pipeline_builder):
     field_type_converter_config = [
         {
             'fields': ['/id'],
@@ -344,7 +343,7 @@ def get_field_type_converter(pipeline_builder):
                                         field_type_converter_configs=field_type_converter_config)
     return field_type_converter, pipeline_builder
 
-def get_schema_generator(pipeline_builder):
+def schema_generator(pipeline_builder):
     schema_generator = pipeline_builder.add_stage('Schema Generator')
     schema_generator.schema_name = 'test_schema'
     schema_generator.enable_cache = True
