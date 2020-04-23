@@ -263,7 +263,7 @@ class Benchpress():
                                      use_multi_row_operation=True,
                                      statement_parameter_limit=32768,
                                      table_name=table_name)
-        query = 'TRUNCATE TABLE {table_name}'
+        query = f'TRUNCATE TABLE {table_name}'
         stop_stage = pipeline_builder.add_stop_event_stage('JDBC Query')
         if Version(self.sdc_builder.version) < Version('3.14.0'):
             stop_stage.set_attributes(sql_query=query)
