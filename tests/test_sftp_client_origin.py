@@ -14,26 +14,36 @@
 The tests in this module are for running high-volume pipelines, for the purpose of performance testing.
 """
 import pytest
-import benchpress
-
 from streamsets.testframework.markers import database, cluster, sftp
+
+from benchpress import Benchpress
 
 @pytest.fixture(scope='module')
 def sdc_common_hook():
     def hook(data_collector):
         data_collector.sdc_properties['production.maxBatchSize'] = '100000'
+        data_collector.SDC_JAVA_OPTS = '-Xmx8192m -Xms8192m'
     return hook
 
 @pytest.mark.parametrize('origin', ('SFTP Client',))
-@pytest.mark.parametrize('destination', ('Kafka Producer',))
-@pytest.mark.parametrize('dataset', ('narrow','wide'))
+@pytest.mark.parametrize('destination', ('Trash', 'Local FS', 'JDBC Producer', 'Kafka Producer'))
+@pytest.mark.parametrize('dataset', ('narrow', 'wide'))
 @pytest.mark.parametrize('number_of_threads', (1,))
 @pytest.mark.parametrize('batch_size', (1000,))
 @pytest.mark.parametrize('destination_format', ('DELIMITED',))
-@pytest.mark.parametrize('num_processors', (0,4))
+@pytest.mark.parametrize('number_of_processors', (0, 4))
 @database
 @cluster('kafka')
 @sftp
-def test_benchpress(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database, cluster, sftp):
-    benchpress.run_test(sdc_builder, sdc_executor, origin, destination, dataset, number_of_threads, batch_size, destination_format, num_processors, benchmark_args, database_env=database, kafka_env=cluster, sftp_env=sftp)
+def test_benchpress(sdc_builder, sdc_executor, benchmark_args, origin, destination,
+                    dataset, number_of_threads, batch_size, destination_format, number_of_processors, database, cluster, sftp):
 
+    Benchpress(sdc_builder, sdc_executor, benchmark_args, origin, destination,
+               dataset=dataset,
+               number_of_threads=number_of_threads,
+               batch_size=batch_size,
+               destination_format=destination_format,
+               number_of_processors=number_of_processors,
+               database=database,
+               kafka=cluster,
+               sftp=sftp).run_test()
