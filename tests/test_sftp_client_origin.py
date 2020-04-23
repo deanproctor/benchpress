@@ -26,7 +26,7 @@ def sdc_common_hook():
     return hook
 
 @pytest.mark.parametrize('origin', ('SFTP Client',))
-@pytest.mark.parametrize('destination', ('Trash', 'Local FS', 'JDBC Producer', 'Kafka Producer'))
+@pytest.mark.parametrize('destination', ('Trash', 'Local FS', 'JDBC Producer', 'Kafka Producer', 'S3'))
 @pytest.mark.parametrize('dataset', ('narrow', 'wide'))
 @pytest.mark.parametrize('number_of_threads', (1,))
 @pytest.mark.parametrize('batch_size', (1000,))
