@@ -46,4 +46,4 @@ def test_benchpress(sdc_builder, sdc_executor, benchmark_args, origin, destinati
                number_of_processors=number_of_processors,
                database=database,
                kafka=cluster,
-               sftp=sftp).run_test()
+               sftp=sftp).rep()

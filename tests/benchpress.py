@@ -63,7 +63,7 @@ class Benchpress():
         self.destination_table = None
         self.destination_kafka_topic = None
 
-    def run_test(self):
+    def rep(self):
         """Builds and runs the pipeline for the current parameter permutation."""
         origin, pipeline_builder = self.get_origin(self.origin)
         destination, pipeline_builder = self.get_destination(self.destination, pipeline_builder)
