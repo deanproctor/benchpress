@@ -39,12 +39,14 @@ ste start $KAFKA
 ste start $SFTP
 
 for version in ${VERSIONS[@]}; do
-    stf --docker-image streamsets/testframework:sdk-31361_31360 --sdc-resources-directory ./resources test -sv --sdc-version $version $JDBC_ARGS $KAFKA_ARGS $SFTP_ARGS $BENCHMARK_ARGS tests
+    for file in `ls tests/test_*.py`; do
+        stf --docker-image streamsets/testframework:sdk-31361_31360 --sdc-resources-directory ./resources test -sv --sdc-version $version $JDBC_ARGS $KAFKA_ARGS $SFTP_ARGS $BENCHMARK_ARGS $file
 
-    # Save results to Elasticsearch
-    for file in `ls results/*.json`; do
-        curl -H 'Content-Type: application/json' -XPOST $ELASTICSEARCH -d @$file
-        mv $file results/sent
+        # Save results to Elasticsearch
+        for file in `ls results/*.json`; do
+            curl -H 'Content-Type: application/json' -XPOST $ELASTICSEARCH -d @$file
+            mv $file results/sent
+        done
     done
 done
 

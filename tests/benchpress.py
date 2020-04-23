@@ -86,7 +86,7 @@ class Benchpress():
         else:
             origin >> destination
 
-        for name, environment in self.environments.items():
+        for environment in self.environments.values():
             if environment is not None:
                 pipeline = pipeline_builder.build().configure_for_environment(environment)
 
