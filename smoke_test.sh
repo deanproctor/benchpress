@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Benchmark Arguments
-RUNS=1
+RUNS=2
 RECORD_COUNT=1
 
 ELASTICSEARCH='https://vpc-benchpress-whgyccujkszqd7kxu6cqncxlly.us-west-2.es.amazonaws.com/benchmarks/1'
