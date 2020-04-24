@@ -56,9 +56,9 @@ class Benchpress():
 
         self.environments = {}
         self.environments['database'] = kwargs.get('database')
-        self.environments['kafka'] = kwargs.get('kafka')
+        self.environments['cluster'] = kwargs.get('cluster')
         self.environments['sftp'] = kwargs.get('sftp')
-        self.environments['s3'] = kwargs.get('s3')
+        self.environments['aws'] = kwargs.get('aws')
         self.http = kwargs.get('http')
 
         self.origin_system = None
@@ -72,6 +72,7 @@ class Benchpress():
         """Builds and runs the pipeline for the current parameter permutation."""
         origin, pipeline_builder = self._get_origin(self.origin)
         destination, pipeline_builder = self._get_destination(self.destination, pipeline_builder)
+        pipeline_builder.add_error_stage('Discard')
 
         if self.number_of_processors == 4:
             stream_selector, pipeline_builder = self._get_stream_selector(pipeline_builder)
@@ -129,7 +130,7 @@ class Benchpress():
 
         # Cleanup
         if self.destination == 'Kafka Producer':
-            admin_client = KafkaAdminClient(bootstrap_servers=self.environments['kafka'].kafka.brokers, request_timeout_ms=180000)
+            admin_client = KafkaAdminClient(bootstrap_servers=self.environments['cluster'].kafka.brokers, request_timeout_ms=180000)
             admin_client.delete_topics([self.destination_kafka_topic])
 
         if self.destination == 'JDBC Producer':
@@ -198,7 +199,7 @@ class Benchpress():
         directory, pipeline_builder = self._directory_origin(MAX_CONCURRENCY)
         kafka_stage_name = 'com_streamsets_pipeline_stage_destination_kafka_KafkaDTarget'
         kafka_producer = pipeline_builder.add_stage(name=kafka_stage_name,
-                                                    library=self.environments['kafka'].kafka.standalone_stage_lib)
+                                                    library=self.environments['cluster'].kafka.standalone_stage_lib)
         kafka_producer.set_attributes(topic=self.dataset,
                                       data_format='DELIMITED',
                                       header_line='WITH_HEADER',
@@ -207,7 +208,7 @@ class Benchpress():
 
         directory >> kafka_producer
 
-        pipeline = pipeline_builder.build().configure_for_environment(self.environments['kafka'])
+        pipeline = pipeline_builder.build().configure_for_environment(self.environments['cluster'])
         self.sdc_executor.add_pipeline(pipeline)
         self.sdc_executor.start_pipeline(pipeline).wait_for_pipeline_output_records_count(self.record_count, timeout_sec=LOAD_TIMEOUT)
         self.sdc_executor.stop_pipeline(pipeline)
@@ -215,11 +216,11 @@ class Benchpress():
 
     def _create_topic_if_not_exists(self, topic):
         """Creates the specified topic if it does not already exist."""
-        if topic in self.environments['kafka'].kafka.consumer().topics():
+        if topic in self.environments['cluster'].kafka.consumer().topics():
             return True
 
         new_topic = NewTopic(name=topic, num_partitions=MAX_CONCURRENCY*2, replication_factor=1)
-        admin_client = KafkaAdminClient(bootstrap_servers=self.environments['kafka'].kafka.brokers,
+        admin_client = KafkaAdminClient(bootstrap_servers=self.environments['cluster'].kafka.brokers,
                                         request_timeout_ms=180000)
         admin_client.create_topics(new_topics=[new_topic], timeout_ms=180000)
         return False
@@ -312,7 +313,7 @@ class Benchpress():
         self._create_topic_if_not_exists(self.destination_kafka_topic)
         kafka_stage_name = 'com_streamsets_pipeline_stage_destination_kafka_KafkaDTarget'
         kafka_producer = pipeline_builder.add_stage(name=kafka_stage_name,
-                                                    library=self.environments['kafka'].kafka.standalone_stage_lib,
+                                                    library=self.environments['cluster'].kafka.standalone_stage_lib,
                                                     type='destination')
         kafka_producer.set_attributes(topic=self.destination_kafka_topic,
                                       data_format=self.destination_format,
@@ -324,7 +325,7 @@ class Benchpress():
     def _s3_destination(self, pipeline_builder):
         """Returns an instance of the S3 Destination."""
         s3_destination = pipeline_builder.add_stage('Amazon S3', type='destination')
-        s3_destination.set_attributes(bucket=self.environments['s3'].s3_bucket_name,
+        s3_destination.set_attributes(bucket=self.environments['aws'].s3_bucket_name,
                                       common_prefix='destination_data',
                                       partition_prefix=get_random_string(string.ascii_letters, 10),
                                       data_format=self.destination_format,
@@ -417,7 +418,7 @@ class Benchpress():
         pipeline_builder = self.sdc_builder.get_pipeline_builder()
         kafka_multitopic_consumer = pipeline_builder.add_stage('Kafka Multitopic Consumer',
                                                                type='origin',
-                                                               library=self.environments['kafka'].kafka.standalone_stage_lib)
+                                                               library=self.environments['cluster'].kafka.standalone_stage_lib)
         kafka_multitopic_consumer.set_attributes(data_format='DELIMITED',
                                                  header_line='WITH_HEADER',
                                                  delimiter_format_type='CUSTOM',
@@ -433,7 +434,7 @@ class Benchpress():
         """Returns an instance of an AWS S3 origin."""
         pipeline_builder = self.sdc_builder.get_pipeline_builder()
         s3_origin = pipeline_builder.add_stage('Amazon S3', type='origin')
-        s3_origin.set_attributes(bucket=self.environments['s3'].s3_bucket_name,
+        s3_origin.set_attributes(bucket=self.environments['aws'].s3_bucket_name,
                                  common_prefix='origin_data',
                                  prefix_pattern=f"{DATASETS[self.dataset]['file_pattern']}",
                                  data_format='DELIMITED',

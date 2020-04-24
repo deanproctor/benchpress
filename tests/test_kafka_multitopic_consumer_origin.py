@@ -39,7 +39,7 @@ def test_benchpress(sdc_builder, sdc_executor, benchmark_args, origin, destinati
                destination_format=destination_format,
                number_of_processors=number_of_processors,
                database=database,
-               kafka=cluster,
+               cluster=cluster,
                sftp=sftp,
-               s3=aws,
+               aws=aws,
                http=http_client).rep()

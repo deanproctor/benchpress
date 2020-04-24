@@ -20,7 +20,7 @@ from benchpress import Benchpress
 @pytest.mark.parametrize('origin', ('S3',))
 @pytest.mark.parametrize('destination', ('Trash', 'HTTP Client', 'Local FS', 'JDBC Producer', 'Kafka Producer', 'S3'))
 @pytest.mark.parametrize('dataset', ('narrow', 'wide'))
-@pytest.mark.parametrize('number_of_threads', (1, 2, 4, 8))
+@pytest.mark.parametrize('number_of_threads', (1, 2))
 @pytest.mark.parametrize('batch_size', (1000,))
 @pytest.mark.parametrize('destination_format', ('DELIMITED',))
 @pytest.mark.parametrize('number_of_processors', (0, 4))
@@ -39,7 +39,7 @@ def test_benchpress(sdc_builder, sdc_executor, benchmark_args, origin, destinati
                destination_format=destination_format,
                number_of_processors=number_of_processors,
                database=database,
-               kafka=cluster,
+               cluster=cluster,
                sftp=sftp,
-               s3=aws,
+               aws=aws,
                http=http_client).rep()
