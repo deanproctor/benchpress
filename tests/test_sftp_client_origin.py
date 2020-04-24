@@ -15,15 +15,7 @@ The tests in this module are for running high-volume pipelines, for the purpose 
 """
 import pytest
 from streamsets.testframework.markers import database, cluster, sftp, aws, http
-
 from benchpress import Benchpress
-
-@pytest.fixture(scope='module')
-def sdc_common_hook():
-    def hook(data_collector):
-        data_collector.sdc_properties['production.maxBatchSize'] = '100000'
-        data_collector.SDC_JAVA_OPTS = '-Xmx8192m -Xms8192m'
-    return hook
 
 @pytest.mark.parametrize('origin', ('SFTP Client',))
 @pytest.mark.parametrize('destination', ('Trash', 'HTTP Client', 'Local FS', 'JDBC Producer', 'Kafka Producer', 'S3'))

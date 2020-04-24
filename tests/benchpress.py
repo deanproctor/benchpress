@@ -236,6 +236,7 @@ class Benchpress():
 
         http_mock = self.http.mock()
         http_mock.when(f'GET /{self.dataset}').reply(json.dumps(http_data), times=FOREVER)
+        http_mock.when('POST /dest').reply('ack', times=FOREVER)
         self.http_mock = http_mock
 
     ### Destinations
@@ -262,9 +263,8 @@ class Benchpress():
 
     def _http_client_destination(self, pipeline_builder):
         """Returns an instance of the HTTP Client destination."""
-        http_mock = self.http.mock()
-        http_mock.when('POST /dest').reply('ack', times=FOREVER)
-        mock_uri = f'{http_mock.pretend_url}/dest'
+        self._setup_http_mock()
+        mock_uri = f'{self.http_mock.pretend_url}/dest'
 
         http_client_destination = pipeline_builder.add_stage('HTTP Client', type='destination')
         http_client_destination.set_attributes(data_format=self.destination_format,
