@@ -15,6 +15,7 @@ import sqlalchemy
 
 from streamsets.sdk.utils import Version
 from streamsets.testframework.utils import get_random_string
+from pretenders.common.constants import FOREVER
 
 # pylint: disable=pointless-statement, too-many-instance-attributes
 
@@ -58,11 +59,14 @@ class Benchpress():
         self.environments['kafka'] = kwargs.get('kafka')
         self.environments['sftp'] = kwargs.get('sftp')
         self.environments['s3'] = kwargs.get('s3')
+        self.http = kwargs.get('http')
 
         self.origin_system = None
         self.destination_system = None
+
         self.destination_table = None
         self.destination_kafka_topic = None
+        self.http_mock = None
 
     def rep(self):
         """Builds and runs the pipeline for the current parameter permutation."""
@@ -130,6 +134,9 @@ class Benchpress():
 
         if self.destination == 'JDBC Producer':
             self.destination_table.drop(self.environments['database'].engine)
+
+        if self.origin == 'HTTP Client':
+            self.http_mock.delete_mock()
 
     def _setup_origin_table(self):
         """Creates and populates an origin table for the current dataset, if it doesn't already exist."""
@@ -216,6 +223,18 @@ class Benchpress():
         admin_client.create_topics(new_topics=[new_topic], timeout_ms=180000)
         return False
 
+    def _setup_http_mock(self):
+        """Creates a mock HTTP server."""
+        if self.http_mock is not None:
+            return
+
+        with open(f"{DATASET_DIR}/{DATASETS[self.dataset]['file_pattern']}{DATASET_SUFFIX}") as csv_file:
+            csv_reader = csv.DictReader(csv_file, delimiter=DATASETS[self.dataset]['delimiter'])
+            http_data = [next(csv_reader) for x in range(self.batch_size)]
+
+        http_mock = self.http.mock()
+        http_mock.when(f'GET /{self.dataset}').reply(json.dumps(http_data), times=FOREVER)
+        self.http_mock = http_mock
 
     ### Destinations
 
@@ -253,6 +272,7 @@ class Benchpress():
     def _jdbc_producer_destination(self, pipeline_builder):
         """Returns an instance of the JDBC Producer destination."""
         self.destination_system = self.environments['database'].engine.dialect.name
+        self.destination_format = None
 
         table_name = get_random_string().lower()
         self._create_table_if_not_exists(table_name)
@@ -313,6 +333,7 @@ class Benchpress():
         """Returns the appropriate origin stage based on the stage name."""
         origins = {
             'Directory': self._directory_origin,
+            'HTTP Client': self._http_client_origin,
             'JDBC Multitable Consumer': self._jdbc_multitable_origin,
             'JDBC Query Consumer': self._jdbc_query_origin,
             'Kafka Multitopic Consumer': self._kafka_multitopic_origin,
@@ -338,6 +359,15 @@ class Benchpress():
                                  number_of_threads=threads,
                                  batch_size_in_recs=self.batch_size)
         return directory, pipeline_builder
+
+    def _http_client_origin(self):
+        """Returns an instance of an HTTP Client origin."""
+        self._setup_http_mock()
+        pipeline_builder = self.sdc_builder.get_pipeline_builder()
+        http_client = pipeline_builder.add_stage('HTTP Client', type='origin')
+        http_client.resource_url = f'{self.http_mock.pretend_url}/{self.dataset}'
+        http_client.json_content = 'ARRAY_OBJECTS'
+        return http_client, pipeline_builder
 
     def _jdbc_multitable_origin(self):
         """Returns an instance of a JDBC Multitable origin."""
