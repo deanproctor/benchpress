@@ -6,6 +6,7 @@ import string
 import tempfile
 
 from datetime import datetime
+from glob import glob
 from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
 from kafka.admin import KafkaAdminClient, NewTopic
@@ -27,15 +28,14 @@ DEFAULT_BATCH_SIZE = 1000
 DEFAULT_DATASET = 'narrow'
 DEFAULT_DESTINATION_FORMAT = 'DELIMITED'
 DATASET_DIR = 'resources'
-DATASET_SUFFIX = '.00001.csv'
 LOAD_TIMEOUT = 86400
 MAX_CONCURRENCY = 8
 STD_DEV_THRESHOLD = 1
 
-DATASETS = {'wide': {'file_pattern': 'cardtxn_50m',
+DATASETS = {'wide': {'file_pattern': 'cardtxn_50m*',
                      'delimiter': ',',
                      'label': 'wide (74 cols, 1450 bytes per row)'},
-            'narrow': {'file_pattern': 'census_50m',
+            'narrow': {'file_pattern': 'census_50m*',
                        'delimiter': ',',
                        'label': 'narrow (13 cols, 275 bytes per row)'}}
 
@@ -165,7 +165,8 @@ class Benchpress():
         if self.environments['database'].engine.dialect.has_table(self.environments['database'].engine, table_name):
             return True
 
-        with open(f"{DATASET_DIR}/{DATASETS[self.dataset]['file_pattern']}{DATASET_SUFFIX}") as csv_file:
+        filename = glob(f"{DATASET_DIR}/{DATASETS[self.dataset]['file_pattern']}")
+        with open(filename[0]) as csv_file:
             csv_reader = csv.DictReader(csv_file, delimiter=DATASETS[self.dataset]['delimiter'])
             header = []
             header.append(next(csv_reader))
@@ -228,7 +229,8 @@ class Benchpress():
         if self.http_mock is not None:
             return
 
-        with open(f"{DATASET_DIR}/{DATASETS[self.dataset]['file_pattern']}{DATASET_SUFFIX}") as csv_file:
+        filename = glob(f"{DATASET_DIR}/{DATASETS[self.dataset]['file_pattern']}")
+        with open(filename[0]) as csv_file:
             csv_reader = csv.DictReader(csv_file, delimiter=DATASETS[self.dataset]['delimiter'])
             http_data = [next(csv_reader) for x in range(self.batch_size)]
 
@@ -353,7 +355,7 @@ class Benchpress():
                                  header_line='WITH_HEADER',
                                  delimiter_format_type='CUSTOM',
                                  delimiter_character=DATASETS[self.dataset]['delimiter'],
-                                 file_name_pattern=f"{DATASETS[self.dataset]['file_pattern']}*",
+                                 file_name_pattern=f"{DATASETS[self.dataset]['file_pattern']}",
                                  file_name_pattern_mode='GLOB',
                                  files_directory=f'/resources/{DATASET_DIR}',
                                  number_of_threads=threads,
@@ -420,7 +422,7 @@ class Benchpress():
         s3_origin = pipeline_builder.add_stage('Amazon S3', type='origin')
         s3_origin.set_attributes(bucket=self.environments['s3'].s3_bucket_name,
                                  common_prefix='origin_data',
-                                 prefix_pattern=f"{DATASETS[self.dataset]['file_pattern']}*",
+                                 prefix_pattern=f"{DATASETS[self.dataset]['file_pattern']}",
                                  data_format='DELIMITED',
                                  header_line='WITH_HEADER',
                                  delimiter_format_type='CUSTOM',
@@ -436,7 +438,7 @@ class Benchpress():
         sftp_client = pipeline_builder.add_stage(name=sftp_stage_name,
                                                  type='origin')
         sftp_client.set_attributes(data_format='DELIMITED',
-                                   file_name_pattern=f"{DATASETS[self.dataset]['file_pattern']}*",
+                                   file_name_pattern=f"{DATASETS[self.dataset]['file_pattern']}",
                                    delimiter_character=DATASETS[self.dataset]['delimiter'],
                                    header_line='WITH_HEADER')
         return sftp_client, pipeline_builder
