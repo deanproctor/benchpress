@@ -10,7 +10,13 @@ BENCHMARK_ARGS="--benchmark-arg=RUNS=${RUNS} --benchmark-arg=RECORD_COUNT=${RECO
 # Data Collector versions to test
 #VERSIONS=(3.14.0 3.13.0 3.12.0 3.11.0 3.10.2 3.10.1 3.10.0)
 VERSIONS=(3.14.0)
-TESTS=(tests/test_jdbc_multitable_consumer_origin.py tests/test_kafka_multitopic_consumer_origin.py tests/test_s3_origin.py tests/test_sftp_client_origin.py tests/test_directory_origin.py)
+
+if [[ -z "$@" ]]
+then
+    TESTS=(tests/test_http_client_origin.py tests/test_jdbc_query_consumer_origin.py tests/test_jdbc_multitable_consumer_origin.py tests/test_kafka_multitopic_consumer_origin.py tests/test_s3_origin.py tests/test_sftp_client_origin.py tests/test_directory_origin.py)
+else
+    TESTS=($@)
+fi
 
 # Environments
 HTTP=HTTP

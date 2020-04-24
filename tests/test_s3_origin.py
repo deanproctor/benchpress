@@ -14,7 +14,7 @@
 The tests in this module are for running high-volume pipelines, for the purpose of performance testing.
 """
 import pytest
-from streamsets.testframework.markers import database, cluster, sftp, aws
+from streamsets.testframework.markers import database, cluster, sftp, aws, http
 
 from benchpress import Benchpress
 
@@ -36,8 +36,9 @@ def sdc_common_hook():
 @cluster('kafka')
 @sftp
 @aws('s3')
+@http
 def test_benchpress(sdc_builder, sdc_executor, benchmark_args, origin, destination,
-                    dataset, number_of_threads, batch_size, destination_format, number_of_processors, database, cluster, sftp, aws):
+                    dataset, number_of_threads, batch_size, destination_format, number_of_processors, database, cluster, sftp, aws, http_client):
 
     Benchpress(sdc_builder, sdc_executor, benchmark_args, origin, destination,
                dataset=dataset,
@@ -48,4 +49,5 @@ def test_benchpress(sdc_builder, sdc_executor, benchmark_args, origin, destinati
                database=database,
                kafka=cluster,
                sftp=sftp,
-               s3=aws).rep()
+               s3=aws,
+               http=http_client).rep()

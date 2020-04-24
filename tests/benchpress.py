@@ -243,6 +243,7 @@ class Benchpress():
     def _get_destination(self, destination, pipeline_builder):
         """Returns the appropriate destination stage based on the stage name."""
         destinations = {
+            'HTTP Client': self._http_client_destination,
             'JDBC Producer': self._jdbc_producer_destination,
             'Kafka Producer': self._kafka_producer_destination,
             'Local FS': self._localfs_destination,
@@ -258,6 +259,18 @@ class Benchpress():
         """Returns an instance of the Trash destination."""
         trash = pipeline_builder.add_stage('Trash', type='destination')
         return trash, pipeline_builder
+
+    def _http_client_destination(self, pipeline_builder):
+        """Returns an instance of the HTTP Client destination."""
+        http_mock = self.http.mock()
+        http_mock.when('POST /dest').reply('ack', times=FOREVER)
+        mock_uri = f'{http_mock.pretend_url}/dest'
+
+        http_client_destination = pipeline_builder.add_stage('HTTP Client', type='destination')
+        http_client_destination.set_attributes(data_format=self.destination_format,
+                                               http_method='POST',
+                                               resource_url=mock_uri)
+        return http_client_destination, pipeline_builder
 
     def _localfs_destination(self, pipeline_builder):
         """Returns an instance of the Local FS destination."""
