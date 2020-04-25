@@ -1,0 +1,177 @@
+#!/bin/bash
+#
+# Execute one or more Benchpress tests
+#
+#
+
+
+#
+# Default Arguments
+#
+
+# Benchmark args
+RUNS=3
+RECORD_COUNT=15000000
+
+VERSIONS=(3.14.0 3.13.0 3.12.0 3.11.0 3.10.2 3.10.1 3.10.0)
+TESTS=(tests)
+
+RESULTS_DIR='results'
+UPLOADED_RESULTS_DIR='results/sent'
+RESOURCES_DIR='resources'
+
+# Environments
+HTTP='HTTP'
+JDBC='PostgreSQL_9.6.2'
+CLUSTER='Kafka_1.0'
+SFTP="SFTP -v $(pwd)/${RESOURCES_DIR}:/home/admin/sftp_dir"
+
+AWS_ARGS='--aws-s3-region-name us-west-2 --aws-s3-bucket-name benchpress'
+HTTP_ARGS='--http-server-url http://myhttpmockserver:8000'
+JDBC_ARGS='--database postgresql://postgres.cluster:5432/default'
+CLUSTER_ARGS='--cluster-server kafka://node-1.cluster:9092,node-2.cluster:9092,node-3.cluster:9092 --kafka-version 1.0.0 --kafka-zookeeper node-1.cluster:2181,node-2.cluster:2181,node-3.cluster:2181 --confluent-schema-registry http://registry-1.cluster:8081'
+SFTP_ARGS='--sftp-url sftp://mysftpserver:22/sftp_dir --sftp-username admin --sftp-password admin'
+
+UPLOAD_RESULTS='yes'
+
+DATASETS=(cardtxn census)
+
+
+# Elasticsearch index URL for uploading results
+ELASTICSEARCH='https://vpc-benchpress-whgyccujkszqd7kxu6cqncxlly.us-west-2.es.amazonaws.com/benchmarks/1'
+
+
+usage() {
+    echo "Usage: $(basename "$0") [-h] [-i <iterations per test>] [-r <record count>] [-s \"<SDC version(s)>\"] [-t \"<test file(s)>\"]"
+    echo "                      [-u <upload results - yes/no>] [-e \"<Elasticsearch URL>\""
+    echo "                      [-j <JDBC STE environment>] [-J \"<JDBC STE arguments>\"]"
+    echo "                      [-c <cluster STE environment>] [-C \"<cluster STE arguments>\"]"
+    echo
+    echo "    -h    Display this help"
+    echo
+    echo "    -i    The number of iterations per test permutation to run"
+    echo "              Default: ${RUNS}"
+    echo
+    echo "    -r    The number of records to use per test"
+    echo "              Default: ${RECORD_COUNT}"
+    echo
+    echo "    -s    The SDC version(s) to test.  Use quotes around multiple versions"
+    echo "              Example: -s \"3.14.0 3.13.0\""
+    echo "              Default: \"${VERSIONS[*]}\""
+    echo
+    echo "    -t    The specific test files to run.  Use quotes around multiple tests"
+    echo "              Example: -t \"tests/test_directory_origin.py tests/test_s3_origin.py\""
+    echo "              Default: all tests"
+    echo
+    echo "    -u    Whether to upload test results to Elasticsearch"
+    echo "              Default: ${UPLOAD_RESULTS}"
+    echo
+    echo "    -e    The Elasticsearch index URL to use for uploading results"
+    echo "              Default: ${ELASTICSEARCH}"
+    echo 
+    echo "    -j    The STE environment to start for JDBC tests"
+    echo "              Default: ${JDBC}"
+    echo
+    echo "    -J    The STE JDBC environment arguments to pass to STF.  Use quotes around the arguments"
+    echo "              Default: \"${JDBC_ARGS}\""
+    echo
+    echo "    -c    The STE cluster environment to start for Hadoop and Kafka tests"
+    echo "              Default: ${CLUSTER}"
+    echo
+    echo "    -C    The STE cluster environment arguments to pass to STF.  Use quotes around the arguments"
+    echo "              Default: \"${CLUSTER_ARGS}\""
+    echo
+    exit 1
+}
+
+# Parse arguments
+while getopts "hi:r:s:t:u:e:j:J:c:C:" arg; do
+    case $arg in
+        i)
+            RUNS="${OPTARG}"
+            ;;
+        r)
+            RECORD_COUNT="${OPTARG}"
+            ;;
+        s)
+            unset VERSIONS
+            VERSIONS=("${OPTARG}")
+            ;;
+        t)
+            unset TESTS
+            TESTS=("${OPTARG}")
+            ;;
+        u)
+            UPLOAD_RESULTS="${OPTARG}"
+            ;;
+        e)
+            ELASTICSEARCH="${OPTARG}"
+            ;;
+        j)
+            JDBC="${OPTARG}"
+            ;;
+        J)
+            JDBC_ARGS="${OPTARG}"
+            ;;
+        c)
+            CLUSTER="${OPTARG}"
+            ;;
+        C)
+            CLUSTER_ARGS="${OPTARG}"
+            ;;
+        h | *)
+            usage
+            ;;
+    esac
+done
+
+BENCHMARK_ARGS="--benchmark-arg=RUNS=${RUNS} --benchmark-arg=RECORD_COUNT=${RECORD_COUNT}"
+
+setup() {
+    # Create test directories
+    mkdir -p "${RESULTS_DIR}"
+    mkdir -p "${UPLOADED_RESULTS_DIR}"
+    mkdir -p "${RESOURCES_DIR}"
+
+    # Download the data sets
+    for dataset in "${DATASETS[@]}"; do
+        if [[ ! -f "${RESOURCES_DIR}"/"${dataset}" ]]; then
+            wget -qO - https://benchpress.s3-us-west-2.amazonaws.com/datasets/"${dataset}".tgz | tar xzvf - -C "${RESOURCES_DIR}"/
+            touch "${RESOURCES_DIR}"/"${dataset}"
+        fi
+    done
+}
+
+start_environments() {
+    # Start the test environments
+    ste restart "${HTTP}"
+    ste restart "${JDBC}"
+    ste restart "${CLUSTER}"
+    ste restart ${SFTP}
+}
+
+upload_results() {
+    for file in "${RESULTS_DIR}"/*.json; do
+        echo
+        echo "Uploading ${file} to ${ELASTICSEARCH}"
+        curl -H 'Content-Type: application/json' -XPOST "${ELASTICSEARCH}" -d @"${file}" && mv "${file}" "${UPLOADED_RESULTS_DIR}"
+    done
+}
+
+
+#
+# Main Execution
+#
+setup
+start_environments
+
+for version in "${VERSIONS[@]}"; do
+    for file in "${TESTS[@]}"; do
+        stf -v --sdc-resources-directory "${RESOURCES_DIR}" test -sv -rs --sdc-version "${version}" ${AWS_ARGS} ${HTTP_ARGS} ${JDBC_ARGS} ${CLUSTER_ARGS} ${SFTP_ARGS} ${BENCHMARK_ARGS} "${file}"
+
+        if [[ "${UPLOAD_RESULTS}" == "yes" ]]; then
+            upload_results
+        fi      
+    done
+done
+
