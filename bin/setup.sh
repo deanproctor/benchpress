@@ -1,3 +1,5 @@
+#!/bin/bash
+
 sudo yum -y groupinstall development
 sudo yum -y install zlib-devel openssl-devel docker jq
 
