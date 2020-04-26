@@ -1,22 +1,11 @@
 # Benchpress
 Benchpress is a project for generating benchmark performance data for StreamSets Data Collector.
 
-**[Click here to view benchmark results.](https://vpc-benchpress-whgyccujkszqd7kxu6cqncxlly.us-west-2.es.amazonaws.com/_plugin/kibana/app/kibana#/dashboard/a18eed40-8337-11ea-96b6-cd28f22d3a55)**
-
 There are 4 primary components to Benchpress:
 1. **[benchpress.py](tests/benchpress.py)**: a class providing a library of parameterized stage configurations defined using the StreamSets SDK along with automation to dynamically generate and execute pipeline benchmarks based on test parameter permutations.
 2. **[tests](tests)**: STF test definitions, grouped by origin stage.  The test definitions use Pytest parameters to generate the pipeline permutations to be benchmarked.
 3. **[bin/benchpress](bin/benchpress)**: a wrapper script used to configure STE environments and launch the STF benchmarks.
 4. A **[Kibana dashboard](https://vpc-benchpress-whgyccujkszqd7kxu6cqncxlly.us-west-2.es.amazonaws.com/_plugin/kibana/app/kibana#/dashboard/a18eed40-8337-11ea-96b6-cd28f22d3a55)** provides frontend visualization of benchmark results.
-
-## Obtaining Benchmark Results
-A common repository of benchmark results is maintained in an AWS Elasticsearch cluster hosted in the SE Basis account.
-
-The Elasticsearch server and Kibana dashboard are not publicly available, so you will need access to the AWS Basis bastion host in order to view results.  Contact DevOps if you do not already have access to the bastion host.
-
-Configure SwitchyOmega in your browser to proxy the following host via the Basis bastion server: 
-
-    vpc-benchpress-whgyccujkszqd7kxu6cqncxlly.us-west-2.es.amazonaws.com
     
 ## Running Benchpress
 The bin/benchpress script configures STE environments on the local host and with default parameters runs the full suite of benchmarks against several versions of SDC.  The script accepts several parameters:
