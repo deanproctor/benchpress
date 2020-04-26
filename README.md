@@ -4,9 +4,9 @@ Benchpress is a project for generating benchmark performance data for StreamSets
 **[Click here to view benchmark results.](https://vpc-benchpress-whgyccujkszqd7kxu6cqncxlly.us-west-2.es.amazonaws.com/_plugin/kibana/app/kibana#/dashboard/a18eed40-8337-11ea-96b6-cd28f22d3a55)**
 
 There are 4 primary components to Benchpress:
-1. **tests/benchpress.py**: a class providing a library of parameterized stage configurations defined using the StreamSets SDK along with automation to dynamically generate and execute pipeline benchmarks based on test parameter permutations.
-2. **tests/test_***: STF test definitions, grouped by origin stage.  The test definitions use Pytest parameters to generate the pipeline permutations to be benchmarked.
-3. **bin/benchpress**: a wrapper script used to configure STE environments and launch the STF benchmarks.
+1. **[benchpress.py](tests/benchpress.py)**: a class providing a library of parameterized stage configurations defined using the StreamSets SDK along with automation to dynamically generate and execute pipeline benchmarks based on test parameter permutations.
+2. **[tests](tests)**: STF test definitions, grouped by origin stage.  The test definitions use Pytest parameters to generate the pipeline permutations to be benchmarked.
+3. **[bin/benchpress](bin/benchpress)**: a wrapper script used to configure STE environments and launch the STF benchmarks.
 4. A **[Kibana dashboard](https://vpc-benchpress-whgyccujkszqd7kxu6cqncxlly.us-west-2.es.amazonaws.com/_plugin/kibana/app/kibana#/dashboard/a18eed40-8337-11ea-96b6-cd28f22d3a55)** provides frontend visualization of benchmark results.
 
 ## Obtaining Benchmark Results
@@ -60,6 +60,8 @@ Usage: benchpress [-h] [-i <iterations per test>] [-r <record count>] [-s "<SDC 
               Default: Kafka_1.0
 
     -C    The STE cluster environment arguments to pass to STF.  Use quotes around the arguments
-              Default: "--cluster-server kafka://node-1.cluster:9092,node-2.cluster:9092,node-3.cluster:9092 --kafka-version 1.0.0 --kafka-zookeeper node-1.cluster:2181,node-2.cluster:2181,node-3.cluster:2181 --confluent-schema-registry http://registry-1.cluster:8081"
+              Default: "--cluster-server kafka://node-1.cluster:9092,node-2.cluster:9092,node-3.cluster:9092 
+                        --kafka-version 1.0.0 --kafka-zookeeper node-1.cluster:2181,node-2.cluster:2181,node-3.cluster:2181 
+                        --confluent-schema-registry http://registry-1.cluster:8081"
 
 ~~~
