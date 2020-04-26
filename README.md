@@ -8,6 +8,13 @@ There are 4 primary components to Benchpress:
 4. A **[Kibana dashboard](https://vpc-benchpress-whgyccujkszqd7kxu6cqncxlly.us-west-2.es.amazonaws.com/_plugin/kibana/app/kibana#/dashboard/a18eed40-8337-11ea-96b6-cd28f22d3a55)** provides frontend visualization of benchmark results.
     
 ## Running Benchpress
+The bin/setup.sh script installs the majority of prerequisites on an Amazon Linux 2 AMI.  
+You will need to perform the following manual steps:
+
+1. `docker login` to gain access to the private STE/STF images
+2. Install STE: `pip3 install -I git+ssh://git@github.com/streamsets/testenvironments.git`
+3. Install STF: `pip3 install -I git+ssh://git@github.com/streamsets/testframework.git`
+
 The bin/benchpress script configures STE environments on the local host and with default parameters runs the full suite of benchmarks against several versions of SDC.  The script accepts several parameters:
 
 ~~~
